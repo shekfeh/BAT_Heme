@@ -1,0 +1,10 @@
+# Amber Force Field Parameters for the Zn2+ Ion
+
+MASS
+Zn2+    65.40
+ZN      65.40
+Zn      65.40
+
+# --- option A: “classic” AMBER NB-Merz (12-6) self-term (works, but not recommended for metalloproteins)
+NONBON
+Zn      1.1000  0.0125               ; Zn2+ (Merz et al., parm99/ff03 era NB-Merz 12-6)

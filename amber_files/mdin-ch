@@ -1,0 +1,40 @@
+*******************************************************
+*****************************       mdin (stable)
+*******************************************************
+Production runs — charge annihilation (TI+MBAR+NFE, SDR kept)
+ &cntrl
+  imin=0,
+  ntx=5, irest=1,
+  ntpr = _ntpr_, ntwr = _ntwr_, ntwe = _ntwe_, ntxo=2,         
+  ntwx= _ntwx_, ntwprt = _num-atoms_, ioutfm=1,
+
+  nstlim = _num-steps_, dt = _step_,             
+  ntc=2, ntf=2, tol=1.0e-6,                      
+  cut = _cutoff_,
+
+  ntb=1, barostat = _barostat_,
+  iwrap=0, nscm=1000, vlimit=15.0,               
+
+  ntt=3, temp0 = _temperature_, gamma_ln=3.0, ig=-1,      
+
+  nmropt=1, pencut=-1,
+
+  ntr=1, restraint_wt=50.0, restraintmask=':1-2',
+
+  ! TI/MBAR unchanged in spirit
+  icfe=1, clambda = lbd_val,
+  timask1 = ':mk1,mk4', timask2 = ':mk2,mk3',
+  ifsc=0, crgmask = ':mk2,mk4', gti_chg_keep=0,
+  ifmbar=1, mbar_states=10,
+  mbar_lambda= 0.01305, 0.06747, 0.16030, 0.28330, 0.42556, 0.57444, 0.71670, 0.83970, 0.93253, 0.98695,
+
+  infe=1
+ /
+ &pmd
+  output_file='cmass.txt',
+  output_freq=2500,
+  cv_file='cv.in'
+ /
+ &wt type='END' /
+DISANG=disang.rest
+LISTOUT=POUT

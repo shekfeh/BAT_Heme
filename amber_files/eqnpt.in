@@ -1,0 +1,34 @@
+*******************************************************
+*****************************       eqnpt.in (stable)
+*******************************************************
+Equilibrate, NPT.
+ &cntrl
+  imin=0,
+  ntx=5, irest=1,
+  ntpr=500, ntwr=500, ntwx=500, ioutfm=1,
+
+  nstlim=20000, dt=0.0005,                 
+  ntc=2, ntf=2, tol=1.0e-6,                
+  cut = _cutoff_,
+
+  ntb=2, ntp=1, barostat = 2,              
+  ntt=3, temp0 = _temperature_, gamma_ln = _gamma_ln_, ig=-1,
+
+  iwrap=0, nscm=1000, vlimit=15.0,
+
+  nmropt=1, pencut=-1,
+
+  ! --- restraints kept exactly as provided ---
+  ntr=1, restraint_wt=50.0, restraintmask=':1',
+
+  ! --- NFE kept on exactly as provided ---
+  infe=1
+ /
+ &pmd
+  output_file='cmass.txt'
+  output_freq=1000
+  cv_file='cv.in'
+ /
+ &wt type='END' /
+DISANG=disang.rest
+LISTOUT=POUT

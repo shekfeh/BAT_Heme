@@ -1,0 +1,188 @@
+BAT_Heme
+
+BAT_Heme is an extension of BAT.py v2.2 designed to support binding free-energy (BFE) calculations for heme-containing enzymes, such as nitric oxide synthases (NOS) and cytochrome P450 proteins.
+
+This repository modifies the original BAT workflow to treat the heme cofactor as an integral part of the protein, including explicit covalent coordination between the heme Fe atom and a coordinating cysteine residue (CYP).
+
+The code has been primarily tested using AMBER + SDR (separated decoupling restraints) workflows.
+
+Key Modifications Relative to BAT.py 2.2
+
+The main changes were implemented in:
+
+BAT_heme.py (main driver script)
+
+lib/build.py (system construction, LEaP logic, restraints, and chain handling)
+
+1. Explicit Heme–Protein Attachment
+
+BAT_Heme introduces explicit handling of Fe–Cys coordination, where:
+
+The coordinating cysteine must be marked as CYP
+
+The Fe–S bond is treated as part of the protein topology, not as a ligand interaction
+
+Distance restraints involving Fe are treated as fixed (non-alchemical) when required
+
+This allows stable simulations of heme enzymes during equilibrium, restraint release, and free-energy stages.
+
+2. Dependencies
+
+Required Software:
+
+pmemd.cuda (AMBER 20 or later)
+http://ambermd.org/GetAmber.php
+
+VMD (Visual Molecular Dynamics)
+https://www.ks.uiuc.edu/Development/Download/download.cgi?PackageName=VMD
+
+Open Babel 2.4.1
+https://github.com/openbabel/openbabel/releases/tag/openbabel-2-4-1
+
+USalign (no installation required; provided witht the code itself)
+https://zhanggroup.org/US-align/
+
+AmberTools 20 or later
+http://ambermd.org/AmberTools.php
+
+AmberTools25 and pmemd.cuda from AMBER24 were the latest versions tested.
+
+3. Protein Preparation Workflow (Critical Step)
+
+To ensure exact atom matching between the PDB heme and the force-field parameters, the following preparation step is required:
+
+Heme Alignment:
+
+Use: align_hem_mol2.py
+
+This script aligns the Shahrokh heme library to the heme present in the experimental PDB structure, ensuring:
+
+Identical atom naming
+
+Correct atom ordering
+
+Consistent geometry for Fe coordination
+
+This step is essential before running LEaP.
+
+4. Shahrokh Heme Parameters
+
+BAT_Heme relies on the Shahrokh et al. heme force-field parameters, which provide multiple heme states:
+
+IC6 – ferric resting state
+
+CPDI – Compound I (oxo-ferryl + porphyrin radical)
+
+DIOXY – dioxygen-bound state
+
+These parameters are widely used for P450 and NOS simulations.
+
+Reference:
+
+Shahrokh, K., et al. Quantum mechanically derived AMBER-compatible heme parameters for various states of the cytochrome P450 catalytic cycle, 
+J. Comput. Chem. 33, 119–133 (2012). 
+DOI: 10.1002/jcc.21922
+
+4. Support for Multi-Chain (Dimeric) Systems
+
+Some heme enzymes (notably iNOS) are functional dimers, especially in the Glu-open conformation.
+
+BAT_Heme therefore supports:
+
+One- or two-chain protein systems
+
+Independent handling of:
+
+* Cys (CYP) residues per chain (Important: change the name of the cystein residue connected to the Heme to CYP inside the PDB file).
+
+* Heme residue numbering per chain
+
+* Correct TER placement and residue renumbering across: 
+
+- EQUIL phase and FE phase with the consideration of the right number of dummy atoms for each phaseand free-energy component.
+
+These required substantial modifications to build.py.
+
+* SDR bulk ligand placement (sdr_dist, sdr_axis):
+
+For SDR (Simultaneous Decoupling–Recoupling) calculations, the bulk (free) ligand is translated away from the receptor by a fixed distance before decoupling.
+
+- Relevant input parameters:
+
+In the input file decouple method must be determined carefully especially if it is intended for two chains (dimer).
+
+For example:
+
+dec_method = sdr
+sdr_dist   = 45.0        # distance (Å) to translate the bulk ligand
+sdr_axis   = -y          # x, -x, y, -y, z, -z, or auto (default)
+
+sdr_dist (Å)
+Controls how far the bulk ligand is moved from the protein.
+Typical values: 45–70 Å, depending on protein size and box dimensions.
+
+sdr_axis
+Direction of translation:
+
+x, -x, y, -y, z, -z → explicit axis and direction
+
+auto → automatically chosen perpendicular to the protein dimer axis.
+
+Recommendation:
+After setup, always visualize the bulk ligand placement to ensure it is fully in solvent and far from the receptor:
+
+Check v00/full.pdb (or vac.pdb) or Check e00/full.pdb
+
+The bulk ligand should have no steric contact with any protein chain, cofactor, or membrane region. 
+If overlap or proximity is observed, increase sdr_dist or explicitly set sdr_axis.
+
+5. Modified AMBER Simulation Settings
+
+To ensure stability of heme-attached proteins, the following AMBER adjustments were introduced:
+
+Heating phase time step fixed to: dt = 0.0005 ps
+
+This was found necessary to avoid instabilities during early equilibration when Fe coordination is present.
+
+6. SDR-Focused Testing
+
+Although BAT supports multiple alchemical protocols, BAT_Heme has been tested primarily with:
+
+SDR (Separated Decoupling Restraints)
+
+AMBER (pmemd.cuda + AmberTools)
+
+⚠️ OpenMM support has not been fully validated for BAT_Heme at this stage.
+
+New Input Parameters for Heme Systems
+
+The following parameters were added to the main input file:
+
+# Residue numbers for heme-containing proteins
+protein_type = heme
+num_chains   = 2
+
+prot_first   = 83
+prot_last    = 503
+cyp_residue  = 200
+
+heme_1       = 901
+heme_2       = 1901
+
+Parameter Description
+Parameter	Description
+protein_type	Must be set to heme
+num_chains	Number of protein chains (1 or 2)
+prot_first	First protein residue in original PDB
+prot_last	Last protein residue in original PDB
+cyp_residue	Coordinating cysteine (CYP) residue number
+heme_1	Original heme residue number (chain A)
+heme_2	Original heme residue number (chain B, if present)
+
+These values are automatically mapped to EQUIL, FE, and dummy-augmented numbering schemes inside BAT.
+
+Another input parameters is:
+
+retain_lig_prot  =  yes/No was necessary to fix guessing of the protonation state of the ligand.
+
+

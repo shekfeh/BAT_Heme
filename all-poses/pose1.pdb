@@ -1,0 +1,63 @@
+HEADER    OREDUCTASE Inhibitor
+REMARK  99                                                                      
+REMARK  99 MOE v2009.1 (Chemical Computing Group Inc.) Tue Dec 16 08:10:46 2025
+HETATM    1  O   UNL     1      54.098  21.014  84.584  0.00  0.00           O  
+HETATM    2  C   UNL     1      53.670  19.764  84.069  0.00  0.00           C  
+HETATM    3  C   UNL     1      54.974  21.815  83.662  0.00  0.00           C  
+HETATM    4  C   UNL     1      55.448  23.066  84.067  0.00  0.00           C  
+HETATM    5  C   UNL     1      56.285  23.824  83.193  0.00  0.00           C  
+HETATM    6  C   UNL     1      56.141  22.067  81.524  0.00  0.00           C  
+HETATM    7  C   UNL     1      55.300  21.308  82.413  0.00  0.00           C  
+HETATM    8  C   UNL     1      56.030  20.374  79.669  0.00  0.00           C  
+HETATM    9  C   UNL     1      54.516  20.506  79.300  0.00  0.00           C  
+HETATM   10  C   UNL     1      54.262  21.569  78.192  0.00  0.00           C  
+HETATM   11  N   UNL     1      56.630  23.324  81.938  0.00  0.00           N  
+HETATM   12  N   UNL     1      56.477  21.615  80.264  0.00  0.00           N  
+HETATM   13  N   UNL     1      55.041  21.196  76.995  0.00  0.00           N  
+HETATM   14  C   UNL     1      56.498  21.134  77.263  0.00  0.00           C  
+HETATM   15  C   UNL     1      56.814  20.126  78.378  0.00  0.00           C  
+HETATM   16  C   UNL     1      54.492  20.930  75.808  0.00  0.00           C  
+HETATM   17  O   UNL     1      53.229  21.004  75.662  0.00  0.00           O  
+HETATM   18  O   UNL     1      55.349  20.575  74.856  0.00  0.00           O  
+HETATM   19  C   UNL     1      54.828  20.248  73.574  0.00  0.00           C  
+HETATM   20  C   UNL     1      56.046  19.810  72.769  0.00  0.00           C  
+HETATM   21  H1  UNL     1      54.542  19.143  83.847  0.00  0.00           H  
+HETATM   22  H2  UNL     1      53.096  19.925  83.153  0.00  0.00           H  
+HETATM   23  H3  UNL     1      53.042  19.261  84.808  0.00  0.00           H  
+HETATM   24  H   UNL     1      55.182  23.458  85.038  0.00  0.00           H  
+HETATM   25  H   UNL     1      56.653  24.790  83.506  0.00  0.00           H  
+HETATM   26  H   UNL     1      54.923  20.343  82.107  0.00  0.00           H  
+HETATM   27  H   UNL     1      56.184  19.555  80.371  0.00  0.00           H  
+HETATM   28  H   UNL     1      53.962  20.794  80.194  0.00  0.00           H  
+HETATM   29  H   UNL     1      54.157  19.540  78.946  0.00  0.00           H  
+HETATM   30  H   UNL     1      54.578  22.550  78.545  0.00  0.00           H  
+HETATM   31  H   UNL     1      53.201  21.596  77.946  0.00  0.00           H  
+HETATM   32  H   UNL     1      57.086  22.200  79.710  0.00  0.00           H  
+HETATM   33  H   UNL     1      56.846  22.121  77.567  0.00  0.00           H  
+HETATM   34  H   UNL     1      57.015  20.831  76.352  0.00  0.00           H  
+HETATM   35  H   UNL     1      56.575  19.126  78.016  0.00  0.00           H  
+HETATM   36  H   UNL     1      57.879  20.185  78.605  0.00  0.00           H  
+HETATM   37  H   UNL     1      54.356  21.117  73.117  0.00  0.00           H  
+HETATM   38  H   UNL     1      54.103  19.438  73.648  0.00  0.00           H  
+HETATM   39  H   UNL     1      55.736  19.538  71.760  0.00  0.00           H  
+HETATM   40  H   UNL     1      56.510  18.950  73.251  0.00  0.00           H  
+HETATM   41  H   UNL     1      56.763  20.630  72.720  0.00  0.00           H  
+CONECT    1    2    3
+CONECT    2   21   22   23
+CONECT    3    4    7
+CONECT    4   24    5
+CONECT    5   25   11
+CONECT    6    7   12   11
+CONECT    7   26
+CONECT    8   27    9   15   12
+CONECT    9   28   29   10
+CONECT   10   30   31   13
+CONECT   12   32
+CONECT   13   14   16
+CONECT   14   33   34   15
+CONECT   15   35   36
+CONECT   16   17   18
+CONECT   18   19
+CONECT   19   37   38   20
+CONECT   20   39   40   41
+END

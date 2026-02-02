@@ -1,0 +1,45 @@
+*******************************************************
+*****************************       mdin (stable LJ decoupling)
+*******************************************************
+Production runs — LJ decoupling (TI+MBAR+NFE, SDR kept)
+ &cntrl
+  imin=0,
+  ntx=5, irest=1,
+  ntpr = _ntpr_, ntwr = _ntwr_, ntwe = _ntwe_, ntxo=2,        
+  ntwx= _ntwx_, ntwprt = _num-atoms_, ioutfm=1,
+
+  nstlim = _num-steps_, dt = _step_,              
+  ntc=2, ntf=1, tol=1.0e-6,                      
+  cut=9.0,
+
+  ntb=1, barostat = _barostat_,
+  iwrap=0, nscm=1000, vlimit=15.0,                
+
+  ntt=3, temp0 = _temperature_, gamma_ln=3.0, ig=-1,       
+
+  nmropt=1, pencut=-1,
+
+  ntr=1, restraint_wt=50.0, restraintmask=':1-2', 
+
+  ! --- TI softcore LJ decoupling ---
+  icfe=1, clambda = lbd_val, scalpha=0.5, scbeta=12.0,
+  timask1 = ':mk1', timask2 = ':mk2',
+  ifsc=1, scmask1=':mk1', scmask2=':mk2', 
+  crgmask = ':mk1,mk2',
+  gti_chg_keep=0,
+  gti_add_sc=1,
+
+  ! --- MBAR ---
+  ifmbar=1, mbar_states=10,
+  mbar_lambda= 0.01305, 0.06747, 0.16030, 0.28330, 0.42556, 0.57444, 0.71670, 0.83970, 0.93253, 0.98695,
+
+  infe=1
+ /
+ &pmd
+  output_file='cmass.txt'
+  output_freq=2500
+  cv_file='cv.in'
+ /
+ &wt type='END' /
+DISANG=disang.rest
+LISTOUT=POUT

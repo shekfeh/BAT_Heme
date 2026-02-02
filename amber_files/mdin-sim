@@ -1,0 +1,36 @@
+*******************************************************
+*****************************       mdin (stable)
+*******************************************************
+Production runs
+ &cntrl
+  imin=0,
+  ntx=5, irest=1,
+  ntpr = _ntpr_, ntwr = _ntwr_, ntwe = _ntwe_, ntxo=2,
+  ntwx = _ntwx_, ntwprt = _num-atoms_, ioutfm=1,
+
+  nstlim = _num-steps_, dt = _step_,           
+  ntc=2, ntf=2, tol=1.0e-6,                    
+  cut = _cutoff_,
+
+  ntb=1, barostat = _barostat_, taup=2.0, mcbarint=500,  
+  iwrap=0, nscm=1000, vlimit=15.0,                    
+
+  ntt=3, temp0= _temperature_, gamma_ln = _gamma_ln_, ig=-1,
+
+  nmropt=1, pencut=-1,
+
+  ! --- restraints kept exactly as provided ---
+  ntr=1, restraint_wt=50.0, restraintmask=':1-2',
+
+  ! --- NFE kept on exactly as provided ---
+  infe=1
+ /
+ &pmd
+  output_file='cmass.txt'
+  output_freq = _ntwx_
+  cv_file='cv.in'
+ /
+ &wt type='END' /
+DISANG=disang.rest
+LISTOUT=POUT
+
