@@ -2096,8 +2096,8 @@ elif stage == "fe":
                 if anch != "all":
                     break
                 os.chdir("../")
-            # Simultaneous/double decoupling/exchange
-            elif comp == "v" or comp == "e":
+            # Simultaneous//exchange
+            elif comp in ("v", "e") and dec_method == "sdr":
                 steps1 = dic_steps1[comp]
                 steps2 = dic_steps2[comp]
                 if dec_method == "dd":
@@ -2270,6 +2270,201 @@ elif stage == "fe":
                             second_cyp_previous_dec=second_cyp_previous_2dum,
                             heme_1=heme_1_2dum,
                             heme_2=heme_2_2dum,
+                            sdr_axis=sdr_axis,
+                        )
+                        setup.dec_files(
+                            temperature,
+                            mol,
+                            num_sim,
+                            pose,
+                            comp,
+                            win,
+                            stage,
+                            steps1,
+                            steps2,
+                            weight,
+                            lambdas,
+                            dec_method,
+                            ntwx,
+                        )
+                if anch != "all":
+                    break
+                os.chdir("../")
+
+            # double decoupling/exchange
+            elif comp in ("v", "e") and dec_method == "dd":
+                steps1 = dic_steps1[comp]
+                steps2 = dic_steps2[comp]
+                if dec_method == "dd":
+                    if not os.path.exists(dec_method):
+                        os.makedirs(dec_method)
+                    os.chdir(dec_method)
+                elif dec_method == "sdr" or dec_method == "exchange":
+                    if not os.path.exists("sdr"):
+                        os.makedirs("sdr")
+                    os.chdir("sdr")
+                for k in range(0, len(lambdas)):
+                    weight = lambdas[k]
+                    win = k
+                    print("window: %s%02d lambda: %s" % (comp, int(win), str(weight)))
+                    if int(win) == 0:
+                        anch = build.build_dec(
+                            fwin,
+                            hmr,
+                            mol,
+                            pose,
+                            molr,
+                            poser,
+                            comp,
+                            win,
+                            water_model,
+                            ntpr,
+                            ntwr,
+                            ntwe,
+                            ntwx,
+                            cut,
+                            gamma_ln,
+                            barostat,
+                            receptor_ff,
+                            ligand_ff,
+                            dt,
+                            sdr_dist,
+                            dec_method,
+                            l1_x,
+                            l1_y,
+                            l1_z,
+                            l1_range,
+                            min_adis,
+                            max_adis,
+                            ion_def,
+                            other_mol,
+                            solv_shell,
+                            first_cyp_dec=first_cyp_1dum,
+                            second_cyp_dec=second_cyp_1dum,
+                            first_cyp_next_dec=first_cyp_next_1dum,
+                            second_cyp_next_dec=second_cyp_next_1dum,
+                            first_cyp_previous_dec=first_cyp_previous_1dum,
+                            second_cyp_previous_dec=second_cyp_previous_1dum,
+                            heme_1=heme_1_2dum,
+                            heme_2=heme_2_2dum,
+                            sdr_axis=sdr_axis,
+                        )
+                        print(
+                            f"[DEBUG] comp={comp} win={win} build_dec returned anch={anch}",
+                            flush=True,
+                        )
+                        if anch == "anch1":
+                            aa1_poses.append(pose)
+                            break
+                        if anch == "anch2":
+                            aa2_poses.append(pose)
+                            break
+                        build.create_box_cyp_fe(
+                            comp,
+                            hmr,
+                            pose,
+                            mol,
+                            molr,
+                            num_waters,
+                            water_model,
+                            ion_def,
+                            neut,
+                            buffer_x,
+                            buffer_y,
+                            buffer_z,
+                            stage,
+                            ntpr,
+                            ntwr,
+                            ntwe,
+                            ntwx,
+                            cut,
+                            gamma_ln,
+                            barostat,
+                            receptor_ff,
+                            ligand_ff,
+                            dt,
+                            dec_method,
+                            other_mol,
+                            solv_shell,
+                            first_cyp_dec=first_cyp_2dum,
+                            second_cyp_dec=second_cyp_2dum,
+                            first_cyp_next_dec=first_cyp_next_1dum,
+                            second_cyp_next_dec=second_cyp_next_1dum,
+                            first_cyp_previous_dec=first_cyp_previous_1dum,
+                            second_cyp_previous_dec=second_cyp_previous_1dum,
+                            heme_1=heme_1_1dum,
+                            heme_2=heme_2_1dum,
+                        )
+                        setup.restraints(
+                            pose,
+                            rest,
+                            bb_start,
+                            bb_end,
+                            weight,
+                            stage,
+                            mol,
+                            molr,
+                            comp,
+                            bb_equil,
+                            sdr_dist,
+                            dec_method,
+                            other_mol,
+                        )
+                        setup.dec_files(
+                            temperature,
+                            mol,
+                            num_sim,
+                            pose,
+                            comp,
+                            win,
+                            stage,
+                            steps1,
+                            steps2,
+                            weight,
+                            lambdas,
+                            dec_method,
+                            ntwx,
+                        )
+                    else:
+                        build.build_dec(
+                            fwin,
+                            hmr,
+                            mol,
+                            pose,
+                            molr,
+                            poser,
+                            comp,
+                            win,
+                            water_model,
+                            ntpr,
+                            ntwr,
+                            ntwe,
+                            ntwx,
+                            cut,
+                            gamma_ln,
+                            barostat,
+                            receptor_ff,
+                            ligand_ff,
+                            dt,
+                            sdr_dist,
+                            dec_method,
+                            l1_x,
+                            l1_y,
+                            l1_z,
+                            l1_range,
+                            min_adis,
+                            max_adis,
+                            ion_def,
+                            other_mol,
+                            solv_shell,
+                            first_cyp_dec=first_cyp_2dum,
+                            second_cyp_dec=second_cyp_2dum,
+                            first_cyp_next_dec=first_cyp_next_1dum,
+                            second_cyp_next_dec=second_cyp_next_1dum,
+                            first_cyp_previous_dec=first_cyp_previous_1dum,
+                            second_cyp_previous_dec=second_cyp_previous_1dum,
+                            heme_1=heme_1_1dum,
+                            heme_2=heme_2_1dum,
                             sdr_axis=sdr_axis,
                         )
                         setup.dec_files(

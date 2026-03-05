@@ -2435,10 +2435,26 @@ def build_dec(
     else:
         sdr_dx, sdr_dy, sdr_dz = _axis_to_vec(sdr_axis_eff, sdr_dist)
 
-    print(
-        f"[SDR] axis={sdr_axis_eff} dist={float(sdr_dist):.2f} -> dx={sdr_dx:.2f} dy={sdr_dy:.2f} dz={sdr_dz:.2f}",
-        flush=True,
-    )
+    # print(
+    #    f"[SDR] axis={sdr_axis_eff} dist={float(sdr_dist):.2f} -> dx={sdr_dx:.2f} dy={sdr_dy:.2f} dz={sdr_dz:.2f}",
+    #    flush=True,
+    # )
+
+    if dec_method == "sdr":
+        print(
+            f"[SDR] axis={sdr_axis_eff} dist={float(sdr_dist):.2f} -> dx={sdr_dx:.2f} dy={sdr_dy:.2f} dz={sdr_dz:.2f}",
+            flush=True,
+        )
+    elif dec_method == "dd":
+        print(
+            f"[DD] No SDR",
+            flush=True,
+        )
+    else:
+        print(
+            f"[{dec_method.upper()}] dist={float(sdr_dist):.2f} -> dx={sdr_dx:.2f} dy={sdr_dy:.2f} dz={sdr_dz:.2f}",
+            flush=True,
+        )
     ##############Components Building#######################
     if comp == "n":
         dec_method = "sdr"
@@ -4133,7 +4149,7 @@ def create_box_cyp_equil(
 ##################Create_Box_HEME_FE Use only in Fe stage (2DUM)######################
 
 
-def create_box_cyp_fe(
+def create_box_cyp_sdr(
     comp,
     hmr,
     pose,
@@ -4333,6 +4349,705 @@ def create_box_cyp_fe(
     tleap_vac.write("quit\n")
     tleap_vac.close()
 
+    # Append tleap file for ligand only
+    tleap_vac_ligand = open("tleap_vac_ligand.in", "a")
+    tleap_vac_ligand.write("# Load the ligand parameters\n")
+    tleap_vac_ligand.write("loadamberparams %s.frcmod\n" % (mol.lower()))
+    tleap_vac_ligand.write("%s = loadmol2 %s.mol2\n\n" % (mol.upper(), mol.lower()))
+    tleap_vac_ligand.write("model = loadpdb %s.pdb\n\n" % (mol.lower()))
+    tleap_vac_ligand.write("check model\n")
+    tleap_vac_ligand.write("savepdb model vac_ligand.pdb\n")
+    tleap_vac_ligand.write("saveamberparm model vac_ligand.prmtop vac_ligand.inpcrd\n")
+    tleap_vac_ligand.write("quit\n")
+    tleap_vac_ligand.close()
+
+    # Generate complex in vacuum
+    p = sp.call("tleap -s -f tleap_vac.in > tleap_vac.log", shell=True)
+
+    # Generate ligand structure in vacuum
+    p = sp.call("tleap -s -f tleap_vac_ligand.in > tleap_vac_ligand.log", shell=True)
+
+    # Find out how many cations/anions are needed for neutralization
+    neu_cat = 0
+    neu_ani = 0
+    f = open("tleap_vac.log", "r")
+    for line in f:
+        if "The unperturbed charge of the unit" in line:
+            splitline = line.split()
+            if float(splitline[6].strip("'\",.:;#()][")) < 0:
+                neu_cat = round(
+                    float(re.sub("[+-]", "", splitline[6].strip("'\"-,.:;#()][")))
+                )
+            elif float(splitline[6].strip("'\",.:;#()][")) > 0:
+                neu_ani = round(
+                    float(re.sub("[+-]", "", splitline[6].strip("'\"-,.:;#()][")))
+                )
+    f.close()
+
+    # Get ligand removed charge when doing LJ calculations
+    lig_cat = 0
+    lig_ani = 0
+    f = open("tleap_vac_ligand.log", "r")
+    for line in f:
+        if "The unperturbed charge of the unit" in line:
+            splitline = line.split()
+            if float(splitline[6].strip("'\",.:;#()][")) < 0:
+                lig_cat = round(
+                    float(re.sub("[+-]", "", splitline[6].strip("'\"-,.:;#()][")))
+                )
+            elif float(splitline[6].strip("'\",.:;#()][")) > 0:
+                lig_ani = round(
+                    float(re.sub("[+-]", "", splitline[6].strip("'\"-,.:;#()][")))
+                )
+    f.close()
+
+    # Adjust ions for LJ and electrostatic Calculations (avoid neutralizing plasma)
+    if (comp == "v" and dec_method == "sdr") or comp == "x":
+        charge_neut = neu_cat - neu_ani - 2 * lig_cat + 2 * lig_ani
+        neu_cat = 0
+        neu_ani = 0
+        if charge_neut > 0:
+            neu_cat = abs(charge_neut)
+        if charge_neut < 0:
+            neu_ani = abs(charge_neut)
+    if comp == "e" and dec_method == "sdr":
+        charge_neut = neu_cat - neu_ani - 3 * lig_cat + 3 * lig_ani
+        neu_cat = 0
+        neu_ani = 0
+        if charge_neut > 0:
+            neu_cat = abs(charge_neut)
+        if charge_neut < 0:
+            neu_ani = abs(charge_neut)
+
+    # Define volume density for different water models
+    ratio = 0.060
+    if water_model == "TIP3P":
+        water_box = water_model.upper() + "BOX"
+    elif water_model == "SPCE":
+        water_box = "SPCBOX"
+    elif water_model == "TIP4PEW":
+        water_box = water_model.upper() + "BOX"
+    elif water_model == "OPC":
+        water_box = water_model.upper() + "BOX"
+    elif water_model == "TIP3PF":
+        water_box = water_model.upper() + "BOX"
+
+    # Fixed number of water molecules
+    if num_waters != 0:
+
+        # Create the first box guess to get the initial number of waters and cross sectional area
+        buff = 50.0
+        scripts.write_tleap(
+            mol, molr, comp, water_model, water_box, buff, buffer_x, buffer_y, other_mol
+        )
+        num_added = scripts.check_tleap()
+        cross_area = scripts.cross_sectional_area()
+
+        # First iteration to estimate box volume and number of ions
+        res_diff = num_added - num_waters
+        buff_diff = res_diff / (ratio * cross_area)
+        buff -= buff_diff
+        print(buff)
+        if buff < 0:
+            print(
+                "Not enough water molecules to fill the system in the z direction, please increase the number of water molecules"
+            )
+            sys.exit(1)
+        # Get box volume and number of added ions
+        scripts.write_tleap(
+            mol, molr, comp, water_model, water_box, buff, buffer_x, buffer_y, other_mol
+        )
+        box_volume = scripts.box_volume()
+        print(box_volume)
+        num_cations = round(
+            ion_def[2] * 6.02e23 * box_volume * 1e-27
+        )  # box volume already takes into account system shrinking during equilibration
+        print(num_cations)
+
+        # Number of cations and anions
+        num_cat = num_cations
+        num_ani = num_cations - neu_cat + neu_ani
+        # If there are not enough chosen cations to neutralize the system
+        if num_ani < 0:
+            num_cat = neu_cat
+            num_cations = neu_cat
+            num_ani = 0
+
+        # Update target number of residues according to the ion definitions and vacuum waters
+        vac_wt = 0
+        with open("./build.pdb") as myfile:
+            for line in myfile:
+                if "WAT" in line and " O " in line:
+                    vac_wt += 1
+        if neut == "no":
+            target_num = int(
+                num_waters - neu_cat + neu_ani + 2 * int(num_cations) - vac_wt
+            )
+        elif neut == "yes":
+            target_num = int(num_waters + neu_cat + neu_ani - vac_wt)
+
+        # Define a few parameters for solvation iteration
+        buff = 50.0
+        count = 0
+        max_count = 10
+        rem_limit = 16
+        factor = 1
+        ind = 0.90
+        buff_diff = 1.0
+
+        # Iterate to get the correct number of waters
+        while num_added != target_num:
+            count += 1
+            if count > max_count:
+                # Try different parameters
+                rem_limit += 4
+                if ind > 0.5:
+                    ind = ind - 0.02
+                else:
+                    ind = 0.90
+                factor = 1
+                max_count = max_count + 10
+            tleap_remove = None
+            # Manually remove waters if inside removal limit
+            if num_added > target_num and (num_added - target_num) < rem_limit:
+                difference = num_added - target_num
+                tleap_remove = [target_num + 1 + i for i in range(difference)]
+                scripts.write_tleap(
+                    mol,
+                    molr,
+                    comp,
+                    water_model,
+                    water_box,
+                    buff,
+                    buffer_x,
+                    buffer_y,
+                    other_mol,
+                    tleap_remove,
+                )
+                scripts.check_tleap()
+                break
+            # Set new buffer size based on chosen water density
+            res_diff = num_added - target_num - (rem_limit / 2)
+            buff_diff = res_diff / (ratio * cross_area)
+            buff -= buff_diff * factor
+            if buff < 0:
+                print(
+                    "Not enough water molecules to fill the system in the z direction, please increase the number of water molecules"
+                )
+                sys.exit(1)
+            # Set relaxation factor
+            factor = ind * factor
+            # Get number of waters
+            scripts.write_tleap(
+                mol,
+                molr,
+                comp,
+                water_model,
+                water_box,
+                buff,
+                buffer_x,
+                buffer_y,
+                other_mol,
+            )
+            num_added = scripts.check_tleap()
+        print(str(count) + " iterations for fixed water number")
+    # Fixed z buffer
+    elif buffer_z != 0:
+        buff = buffer_z
+        tleap_remove = None
+        # Get box volume and number of added ions
+        scripts.write_tleap(
+            mol, molr, comp, water_model, water_box, buff, buffer_x, buffer_y, other_mol
+        )
+        box_volume = scripts.box_volume()
+        print(box_volume)
+        num_cations = round(
+            ion_def[2] * 6.02e23 * box_volume * 1e-27
+        )  # # box volume already takes into account system shrinking during equilibration
+        # Number of cations and anions
+        num_cat = num_cations
+        num_ani = num_cations - neu_cat + neu_ani
+        # If there are not enough chosen cations to neutralize the system
+        if num_ani < 0:
+            num_cat = neu_cat
+            num_cations = neu_cat
+            num_ani = 0
+        print(num_cations)
+    ###Insert TER after the first iNOS chain
+    if second_cyp_dec is not None and first_cyp_dec is not None:
+        prot_len_equil = int(second_cyp_dec) - int(first_cyp_dec)
+
+        # count dummies at start of the PDB (e.g., DUM)
+        n_dum = count_leading_resname("build.pdb", "DUM")
+
+        # chain A ends at (prot_len + n_dum) in the PDB numbering
+        insert_after = prot_len_equil + n_dum
+
+        insert_ter_after_resnum("build.pdb", insert_after)
+        insert_ter_after_resnum("build-dry.pdb", insert_after)
+
+    # insert_ter_after_resnum("build.pdb", 423)
+    # insert_ter_after_resnum("build-dry.pdb", 423)
+
+    # Decide which FE residue indices to use for this component (LEaP residue indices as you had)
+    # Count UNL residues to decide which heme numbering to use
+    res_counts = count_nonprotein_residues("build-dry.pdb")
+    print(f"[INFO] Detected {res_counts} UNL residues in build-dry.pdb", flush=True)
+
+    # What you actually need here is: how many ligand residues exist (how many copies)
+    num_unl = count_unl_residues("build-dry.pdb", residue_name=str(mol).upper())
+    print(
+        f"[INFO] Detected {num_unl} ligand residues ({str(mol).upper()}) in build-dry.pdb",
+        flush=True,
+    )
+
+    # num_unl = count_unl_residues("build-dry.pdb")
+    # print(f"[INFO] Detected {num_unl} UNL residues in build-dry.pdb")
+
+    if heme_1 is None and heme_2 is None:
+        raise ValueError(
+            "create_box_cyp_fe requires one value at least heme_1 (EQUIL/1-dummy heme numbers)"
+        )
+
+    delta = int(num_unl) - 1
+    if delta < 0:
+        delta = 0
+
+    # Consider the extra UNL copies for heme residues
+    heme_FE_1 = int(heme_1) + delta
+    if heme_2 is not None:
+        heme_FE_2 = int(heme_2) + delta
+
+    # Write the final tleap file with the correct system size and removed water molecules
+    shutil.copy("tleap.in", "tleap_solvate.in")
+    tleap_solvate = open("tleap_solvate.in", "a")
+    tleap_solvate.write("# Load the water and jc ion parameters\n")
+    if water_model.lower() != "tip3pf":
+        tleap_solvate.write("source leaprc.water.%s\n\n" % (water_model.lower()))
+    else:
+        tleap_solvate.write("source leaprc.water.fb3\n\n")
+    for i in range(0, len(other_mol)):
+        tleap_solvate.write("loadamberparams %s.frcmod\n" % (other_mol[i].lower()))
+        tleap_solvate.write(
+            "%s = loadmol2 %s.mol2\n" % (other_mol[i].upper(), other_mol[i].lower())
+        )
+    tleap_solvate.write("# Load the necessary parameters\n")
+    tleap_solvate.write("# Load the CYP library\n")
+    tleap_solvate.write("CYP = loadmol2 cyp.mol2\n")
+    tleap_solvate.write("# make CYP behave like a residue template with head/tail\n")
+    tleap_solvate.write("set CYP head N\n")
+    tleap_solvate.write("set CYP tail C\n")
+    tleap_solvate.write("loadamberparams %s.frcmod\n" % (mol.lower()))
+    tleap_solvate.write("%s = loadmol2 %s.mol2\n\n" % (mol.upper(), mol.lower()))
+    if comp == "x":
+        tleap_solvate.write("loadamberparams %s.frcmod\n" % (molr.lower()))
+    if comp == "x":
+        tleap_solvate.write("%s = loadmol2 %s.mol2\n\n" % (molr.upper(), molr.lower()))
+    tleap_solvate.write("model = loadpdb build.pdb\n\n")
+    # ----- Chain A -----
+    tleap_solvate.write("# connect the peptide bonds (chain A)\n")
+    tleap_solvate.write(
+        f"bond model.{first_cyp_previous_dec}.C  model.{first_cyp_dec}.N\n"
+    )
+    tleap_solvate.write(f"bond model.{first_cyp_dec}.C  model.{first_cyp_next_dec}.N\n")
+
+    tleap_solvate.write("# Create the FE-SG bond (chain A)\n")
+    tleap_solvate.write(f"bond model.{first_cyp_dec}.SG model.{heme_FE_1}.FE\n")
+
+    # ----- Chain B (if present) -----
+    if second_cyp_dec is not None:
+        tleap_solvate.write("# connect the peptide bonds (chain B)\n")
+        tleap_solvate.write(
+            f"bond model.{second_cyp_previous_dec}.C  model.{second_cyp_dec}.N\n"
+        )
+        tleap_solvate.write(
+            f"bond model.{second_cyp_dec}.C  model.{second_cyp_next_dec}.N\n"
+        )
+
+        tleap_solvate.write("# Create the FE-SG bond (chain B)\n")
+        tleap_solvate.write(f"bond model.{second_cyp_dec}.SG model.{heme_FE_2}.FE\n")
+    # ----- Check Model and Write PArameters -----
+    tleap_solvate.write("desc model.HEM.FE\n")
+    tleap_solvate.write(f"desc model.{first_cyp_previous_dec}\n")
+    tleap_solvate.write(f"desc model.{first_cyp_dec}\n")
+    tleap_solvate.write(f"desc model.{first_cyp_next_dec}\n")
+    tleap_solvate.write(f"desc model.{first_cyp_previous_dec}.C\n")
+    tleap_solvate.write(f"desc model.{first_cyp_dec}.N\n")
+    tleap_solvate.write(f"desc model.{first_cyp_dec}.C\n")
+    tleap_solvate.write(f"desc model.{first_cyp_next_dec}.N\n")
+    tleap_solvate.write(f"desc model.{first_cyp_next_dec}.C\n")
+    tleap_solvate.write(f"check model\n")
+    tleap_solvate.write("\n")
+    tleap_solvate.write("# Create water box with chosen model\n")
+    tleap_solvate.write(
+        "solvatebox model "
+        + water_box
+        + " {"
+        + str(buffer_x)
+        + " "
+        + str(buffer_y)
+        + " "
+        + str(buff)
+        + "}\n\n"
+    )
+    if tleap_remove is not None:
+        tleap_solvate.write("# Remove a few waters manually\n")
+        for water in tleap_remove:
+            tleap_solvate.write("remove model model.%s\n" % water)
+        tleap_solvate.write("\n")
+    # Ionize/neutralize system
+    if neut == "no":
+        tleap_solvate.write("# Add ions for neutralization/ionization\n")
+        tleap_solvate.write("addionsrand model %s %d\n" % (ion_def[0], num_cat))
+        tleap_solvate.write("addionsrand model %s %d\n" % (ion_def[1], num_ani))
+    elif neut == "yes":
+        tleap_solvate.write("# Add ions for neutralization/ionization\n")
+        if neu_cat != 0:
+            tleap_solvate.write("addionsrand model %s %d\n" % (ion_def[0], neu_cat))
+        if neu_ani != 0:
+            tleap_solvate.write("addionsrand model %s %d\n" % (ion_def[1], neu_ani))
+    tleap_solvate.write("\n")
+    tleap_solvate.write("desc model\n")
+    tleap_solvate.write("savepdb model full.pdb\n")
+    tleap_solvate.write("saveamberparm model full.prmtop full.inpcrd\n")
+    tleap_solvate.write("quit")
+    tleap_solvate.close()
+    p = sp.call("tleap -s -f tleap_solvate.in > tleap_solvate.log", shell=True)
+
+    f = open("tleap_solvate.log", "r")
+    for line in f:
+        if "Could not open file" in line:
+            print("WARNING!!!")
+            print(line)
+            sys.exit(1)
+        if "WARNING: The unperturbed charge of the unit:" in line:
+            print(line)
+            print("The system is not neutralized properly after solvation")
+        if "addIonsRand: Argument #2 is type String must be of type: [unit]" in line:
+            print("Aborted.The ion types specified in the input file could be wrong.")
+            print(
+                "Please check the tleap_solvate.log file, and the ion types specified in the input file.\n"
+            )
+            sys.exit(1)
+    f.close()
+
+    # Remove TER after CYP residues in EQUIL numbering
+    if first_cyp_dec is not None:
+        remove_ter_after_resnum("full.pdb", int(first_cyp_dec))
+
+    if second_cyp_dec is not None:
+        remove_ter_after_resnum("full.pdb", int(second_cyp_dec))
+
+    # Remove TER after residue 120
+    # remove_ter_after_resnum("full.pdb", 120)
+    # remove_ter_after_resnum("full.pdb", 541)
+
+    # Apply hydrogen mass repartitioning
+    print("Applying mass repartitioning...")
+    shutil.copy("../amber_files/parmed-hmr.in", "./")
+    sp.call("parmed -O -n -i parmed-hmr.in > parmed-hmr.log", shell=True)
+
+    if stage != "fe":
+        os.chdir("../")
+
+
+################## Create_Box For DD and SDR ##################################
+
+import os, re, glob, shutil, subprocess as sp, sys
+
+PDB_ATOM_RE = re.compile(r"^(ATOM  |HETATM)")
+
+
+def _iter_pdb_atoms(pdb_path):
+    with open(pdb_path, "r") as f:
+        for line in f:
+            if PDB_ATOM_RE.match(line):
+                resname = line[17:20].strip()
+                resid = int(line[22:26].strip())
+                atom = line[12:16].strip()
+                yield resid, resname, atom
+
+
+def count_leading_resname(pdb_path, resname):
+    """Count consecutive leading residues with given resname (e.g., DUM) by residue index order."""
+    # Determine residue order by first occurrence in file (after renumbering, this matches residue IDs)
+    seen = []
+    for resid, rname, atom in _iter_pdb_atoms(pdb_path):
+        if not seen or seen[-1] != resid:
+            seen.append(resid)
+    # Map resid -> resname (first atom occurrence)
+    resid2name = {}
+    for resid, rname, atom in _iter_pdb_atoms(pdb_path):
+        if resid not in resid2name:
+            resid2name[resid] = rname
+
+    # Count from smallest resid upward
+    lead = 0
+    for resid in sorted(resid2name.keys()):
+        if resid2name[resid] == resname:
+            lead += 1
+        else:
+            break
+    return lead
+
+
+def _resname_at_resid(pdb_path, resid):
+    for r, rn, atom in _iter_pdb_atoms(pdb_path):
+        if r == resid:
+            return rn
+    return None
+
+
+def _infer_heme_resids(pdb_path, allowed_resnames=("HEM", "HEO", "HEC", "HEA", "HEB")):
+    """
+    Infer heme residue indices by searching residues that contain atom name FE
+    and have a heme-like residue name.
+    Returns sorted unique residue ids.
+    """
+    hemes = set()
+    # Collect per-residue atoms
+    resid2 = {}
+    for resid, rname, atom in _iter_pdb_atoms(pdb_path):
+        if resid not in resid2:
+            resid2[resid] = {"resname": rname, "atoms": set()}
+        resid2[resid]["atoms"].add(atom)
+
+    for resid, info in resid2.items():
+        rn = info["resname"]
+        if ("FE" in info["atoms"]) and (rn in allowed_resnames or rn.startswith("HE")):
+            hemes.add(resid)
+
+    return sorted(hemes)
+
+
+def _adjust_index_if_needed(pdb_path, idx, n_dum, expected_resnames=None):
+    """
+    Given an index passed by user, decide if it already includes dummies or not.
+    Strategy:
+      - if expected_resnames is provided and resname at idx matches, keep idx
+      - else if resname at idx+n_dum matches, use idx+n_dum
+      - else keep idx (but it's likely already correct or user used different naming)
+    """
+    if idx is None:
+        return None
+    idx = int(idx)
+
+    if expected_resnames:
+        rn = _resname_at_resid(pdb_path, idx)
+        if rn in expected_resnames:
+            return idx
+        rn2 = _resname_at_resid(pdb_path, idx + n_dum)
+        if rn2 in expected_resnames:
+            return idx + n_dum
+        # try the other direction (rare, but helps when someone already added shift twice)
+        rn3 = _resname_at_resid(pdb_path, max(1, idx - n_dum))
+        if rn3 in expected_resnames:
+            return max(1, idx - n_dum)
+
+    return idx
+
+
+def create_box_cyp_fe(
+    comp,
+    hmr,
+    pose,
+    mol,
+    molr,
+    num_waters,
+    water_model,
+    ion_def,
+    neut,
+    buffer_x,
+    buffer_y,
+    buffer_z,
+    stage,
+    ntpr,
+    ntwr,
+    ntwe,
+    ntwx,
+    cut,
+    gamma_ln,
+    barostat,
+    receptor_ff,
+    ligand_ff,
+    dt,
+    dec_method,
+    other_mol,
+    solv_shell,
+    first_cyp_dec=None,
+    second_cyp_dec=None,
+    first_cyp_next_dec=None,
+    second_cyp_next_dec=None,
+    first_cyp_previous_dec=None,
+    second_cyp_previous_dec=None,
+    # heme_1/heme_2 kept only as optional sanity hints; inference is primary
+    heme_1=None,
+    heme_2=None,
+):
+    # --- buffer adjust (unchanged) ---
+    if stage == "fe" and solv_shell != 0:
+        buffer_x = buffer_x - solv_shell
+        buffer_y = buffer_y - solv_shell
+        if buffer_z != 0:
+            if ((dec_method == "sdr") and (comp in ("e", "v"))) or comp in ("n", "x"):
+                buffer_z = buffer_z - (solv_shell / 2)
+            else:
+                buffer_z = buffer_z - solv_shell
+
+    # --- copy/replace amber_files (unchanged) ---
+    if stage != "fe":
+        if os.path.exists("amber_files"):
+            shutil.rmtree("./amber_files")
+        shutil.copytree("../amber_files", "./amber_files")
+        for dname, dirs, files in os.walk("./amber_files"):
+            for fname in files:
+                fpath = os.path.join(dname, fname)
+                with open(fpath) as f:
+                    s = f.read()
+                s = (
+                    s.replace("_step_", dt)
+                    .replace("_ntpr_", ntpr)
+                    .replace("_ntwr_", ntwr)
+                    .replace("_ntwe_", ntwe)
+                    .replace("_ntwx_", ntwx)
+                    .replace("_cutoff_", cut)
+                    .replace("_gamma_ln_", gamma_ln)
+                    .replace("_barostat_", barostat)
+                    .replace("_receptor_ff_", receptor_ff)
+                    .replace("_ligand_ff_", ligand_ff)
+                )
+                with open(fpath, "w") as f:
+                    f.write(s)
+        os.chdir(pose)
+
+    # Copy tleap files for restraint generation and analysis
+    shutil.copy("../amber_files/tleap.in.amber16", "tleap_vac.in")
+    shutil.copy("../amber_files/tleap.in.amber16", "tleap_vac_ligand.in")
+    shutil.copy("../amber_files/tleap.in.amber16", "tleap.in")
+
+    # Copy ligand parameter files
+    for file in glob.glob("../ff/*"):
+        shutil.copy(file, "./")
+
+    # ----- TER insertion (only once) -----
+    # (your existing helper functions assumed available)
+    if second_cyp_dec is not None and first_cyp_dec is not None:
+        prot_len_equil = int(second_cyp_dec) - int(first_cyp_dec)
+        n_dum_build = count_leading_resname("build.pdb", "DUM")
+        insert_after = prot_len_equil + n_dum_build
+        insert_ter_after_resnum("build.pdb", insert_after)
+        insert_ter_after_resnum("build-dry.pdb", insert_after)
+
+    # Renumber AFTER TER modifications
+    renumber_pdb_residues("build.pdb", "build.pdb")
+    renumber_pdb_residues("build-dry.pdb", "build-dry.pdb")
+
+    # ----- Infer dummy count from the actual (renumbered) PDB -----
+    n_dum = count_leading_resname("build-dry.pdb", "DUM")
+    print(f"[INFO] Leading dummy residues (DUM) in build-dry.pdb: {n_dum}", flush=True)
+
+    # ----- Adjust CYP residue indices only if needed -----
+    # Expect your modified cysteine residue name to be CYP (or CYS if you didn’t rename)
+    expected_cys = {"CYP", "CYS", "CYX", "CYM"}  # widen if needed
+
+    first_cyp_dec = _adjust_index_if_needed(
+        "build-dry.pdb", first_cyp_dec, n_dum, expected_cys
+    )
+    first_cyp_previous_dec = _adjust_index_if_needed(
+        "build-dry.pdb", first_cyp_previous_dec, n_dum, None
+    )
+    first_cyp_next_dec = _adjust_index_if_needed(
+        "build-dry.pdb", first_cyp_next_dec, n_dum, None
+    )
+
+    if second_cyp_dec is not None:
+        second_cyp_dec = _adjust_index_if_needed(
+            "build-dry.pdb", second_cyp_dec, n_dum, expected_cys
+        )
+        second_cyp_previous_dec = _adjust_index_if_needed(
+            "build-dry.pdb", second_cyp_previous_dec, n_dum, None
+        )
+        second_cyp_next_dec = _adjust_index_if_needed(
+            "build-dry.pdb", second_cyp_next_dec, n_dum, None
+        )
+
+    # ----- Infer heme residue indices directly (NO delta tricks) -----
+    hemes = _infer_heme_resids("build-dry.pdb")
+    print(f"[INFO] Inferred heme residues in build-dry.pdb: {hemes}", flush=True)
+
+    if len(hemes) == 0:
+        raise ValueError(
+            "Could not infer heme residue index (no FE atom found in heme-like residue)."
+        )
+    if second_cyp_dec is None and len(hemes) > 1:
+        # pick the first one deterministically; you can tighten this if you want
+        heme_FE_1 = hemes[0]
+    else:
+        heme_FE_1 = hemes[0]
+
+    heme_FE_2 = None
+    if second_cyp_dec is not None:
+        if len(hemes) < 2:
+            raise ValueError("Expected 2 hemes (two chains), but only 1 was inferred.")
+        heme_FE_2 = hemes[1]
+
+    # --- write tleap_vac.in using inferred indices ---
+    tleap_vac = open("tleap_vac.in", "a")
+    tleap_vac.write("# Load the necessary parameters\n")
+    for i in range(0, len(other_mol)):
+        tleap_vac.write(f"loadamberparams {other_mol[i].lower()}.frcmod\n")
+        tleap_vac.write(
+            f"{other_mol[i].upper()} = loadmol2 {other_mol[i].lower()}.mol2\n"
+        )
+
+    tleap_vac.write(f"loadamberparams {mol.lower()}.frcmod\n")
+    tleap_vac.write(f"{mol.upper()} = loadmol2 {mol.lower()}.mol2\n\n")
+    if comp == "x":
+        tleap_vac.write(f"loadamberparams {molr.lower()}.frcmod\n")
+        tleap_vac.write(f"{molr.upper()} = loadmol2 {molr.lower()}.mol2\n\n")
+
+    tleap_vac.write("# Load the water parameters\n")
+    if water_model.lower() != "tip3pf":
+        tleap_vac.write(f"source leaprc.water.{water_model.lower()}\n\n")
+    else:
+        tleap_vac.write("source leaprc.water.fb3\n\n")
+
+    tleap_vac.write("# Load the CYP library\n")
+    tleap_vac.write("CYP = loadmol2 cyp.mol2\n")
+    tleap_vac.write("set CYP head N\n")
+    tleap_vac.write("set CYP tail C\n")
+    tleap_vac.write("model = loadpdb build-dry.pdb\n\n")
+
+    # Chain A peptide bonds + Fe-SG
+    tleap_vac.write("# connect the peptide bonds (chain A)\n")
+    tleap_vac.write(f"bond model.{first_cyp_previous_dec}.C  model.{first_cyp_dec}.N\n")
+    tleap_vac.write(f"bond model.{first_cyp_dec}.C  model.{first_cyp_next_dec}.N\n")
+    tleap_vac.write("# Create the FE-SG bond (chain A)\n")
+    tleap_vac.write(f"bond model.{first_cyp_dec}.SG model.{heme_FE_1}.FE\n")
+
+    # Chain B if present
+    if second_cyp_dec is not None:
+        tleap_vac.write("# connect the peptide bonds (chain B)\n")
+        tleap_vac.write(
+            f"bond model.{second_cyp_previous_dec}.C  model.{second_cyp_dec}.N\n"
+        )
+        tleap_vac.write(
+            f"bond model.{second_cyp_dec}.C  model.{second_cyp_next_dec}.N\n"
+        )
+        tleap_vac.write("# Create the FE-SG bond (chain B)\n")
+        tleap_vac.write(f"bond model.{second_cyp_dec}.SG model.{heme_FE_2}.FE\n")
+
+    tleap_vac.write("check model\n")
+    tleap_vac.write("savepdb model vac.pdb\n")
+    tleap_vac.write("saveamberparm model vac.prmtop vac.inpcrd\n")
+    tleap_vac.write("quit\n")
+    tleap_vac.close()
+
+    # --- keep the rest of your function (tleap_vac_ligand, solvation iteration, ions, etc.) unchanged ---
+    # Important: when you later write tleap_solvate.in, use heme_FE_1/heme_FE_2 again (inferred),
+    # not any delta-based computation.
+
+    # (the rest of your original create_box_cyp_fe can follow here as-is)
     # Append tleap file for ligand only
     tleap_vac_ligand = open("tleap_vac_ligand.in", "a")
     tleap_vac_ligand.write("# Load the ligand parameters\n")
