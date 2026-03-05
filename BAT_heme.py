@@ -1272,6 +1272,7 @@ elif stage == "fe":
         # Generate folder and restraints for all components and windows
         for j in range(0, len(components)):
             comp = components[j]
+            print(f"[DEBUG] Starting component: {comp}", flush=True)
             # Ligand conformational release in a small box
             if comp == "c":
                 if not os.path.exists("rest"):
@@ -1324,6 +1325,10 @@ elif stage == "fe":
                             heme_1=heme_1_1dum,
                             heme_2=heme_2_1dum,
                             sdr_axis=sdr_axis,
+                        )
+                        print(
+                            f"[DEBUG] comp={comp} win={win} build_dec returned anch={anch}",
+                            flush=True,
                         )
                         if anch == "anch1":
                             aa1_poses.append(pose)
@@ -1440,7 +1445,7 @@ elif stage == "fe":
                     break
                 os.chdir("../")
             # Receptor conformational release in a separate box
-            elif comp == "r" or comp == "n":
+            elif comp == "n":
                 steps1 = dic_steps1[comp]
                 steps2 = dic_steps2[comp]
                 if not os.path.exists("rest"):
@@ -1493,6 +1498,10 @@ elif stage == "fe":
                             heme_1=heme_1_2dum,
                             heme_2=heme_2_2dum,
                             sdr_axis=sdr_axis,
+                        )
+                        print(
+                            f"[DEBUG] comp={comp} win={win} build_dec returned anch={anch}",
+                            flush=True,
                         )
                         if anch == "anch1":
                             aa1_poses.append(pose)
@@ -1638,11 +1647,251 @@ elif stage == "fe":
                             steps2,
                             rng,
                         )
+                print(
+                    f"[DEBUG] comp={comp} win={win} anch={anch} cwd={os.getcwd()}",
+                    flush=True,
+                )
+
                 if anch != "all":
+                    print(
+                        f"[DEBUG] BREAK triggered for comp={comp} because anch={anch}",
+                        flush=True,
+                    )
                     break
+
+                print(
+                    f"[DEBUG] continuing, leaving directory {os.getcwd()}", flush=True
+                )
                 os.chdir("../")
+                print(f"[DEBUG] now in {os.getcwd()}", flush=True)
+            # Component r for releasing protein Restraints
+            elif comp == "r":
+                steps1 = dic_steps1[comp]
+                steps2 = dic_steps2[comp]
+                if not os.path.exists("rest"):
+                    os.makedirs("rest")
+                os.chdir("rest")
+                # receptor-only: no UNL ligand residue -> other_mol (including HEM) shifts by -1
+                heme_shift = 1 if comp == "r" else 0
+                heme_1_for_rcomp = heme_1_1dum - heme_shift
+                heme_2_for_rcomp = (
+                    (heme_2_1dum - heme_shift) if heme_2_1dum is not None else None
+                )
+                for k in range(0, len(attach_rest)):
+                    weight = attach_rest[k]
+                    win = k
+                    if int(win) == 0:
+                        print(
+                            "window: %s%02d weight: %s" % (comp, int(win), str(weight))
+                        )
+                        anch = build.build_dec(
+                            fwin,
+                            hmr,
+                            mol,
+                            pose,
+                            molr,
+                            poser,
+                            comp,
+                            win,
+                            water_model,
+                            ntpr,
+                            ntwr,
+                            ntwe,
+                            ntwx,
+                            cut,
+                            gamma_ln,
+                            barostat,
+                            receptor_ff,
+                            ligand_ff,
+                            dt,
+                            sdr_dist,
+                            dec_method,
+                            l1_x,
+                            l1_y,
+                            l1_z,
+                            l1_range,
+                            min_adis,
+                            max_adis,
+                            ion_def,
+                            other_mol,
+                            solv_shell,
+                            first_cyp_dec=first_cyp_1dum,
+                            second_cyp_dec=second_cyp_1dum,
+                            first_cyp_next_dec=first_cyp_next_1dum,
+                            second_cyp_next_dec=second_cyp_next_1dum,
+                            first_cyp_previous_dec=first_cyp_previous_1dum,
+                            second_cyp_previous_dec=second_cyp_previous_1dum,
+                            heme_1=heme_1_for_rcomp,
+                            heme_2=heme_2_for_rcomp,
+                            sdr_axis=sdr_axis,
+                        )
+                        print(
+                            f"[DEBUG] comp={comp} win={win} build_dec returned anch={anch}",
+                            flush=True,
+                        )
+                        if anch == "anch1":
+                            aa1_poses.append(pose)
+                            break
+                        if anch == "anch2":
+                            aa2_poses.append(pose)
+                            break
+                        print("Creating box for protein/simultaneous release...")
+                        build.create_box_cyp_equil(
+                            comp,
+                            hmr,
+                            pose,
+                            mol,
+                            molr,
+                            num_waters,
+                            water_model,
+                            ion_def,
+                            neut,
+                            buffer_x,
+                            buffer_y,
+                            buffer_z,
+                            stage,
+                            ntpr,
+                            ntwr,
+                            ntwe,
+                            ntwx,
+                            cut,
+                            gamma_ln,
+                            barostat,
+                            receptor_ff,
+                            ligand_ff,
+                            dt,
+                            dec_method,
+                            other_mol,
+                            solv_shell,
+                            first_cyp_equil=first_cyp_1dum,
+                            second_cyp_equil=second_cyp_1dum,
+                            first_cyp_next_equil=first_cyp_next_1dum,
+                            second_cyp_next_equil=second_cyp_next_1dum,
+                            first_cyp_previous_equil=first_cyp_previous_1dum,
+                            second_cyp_previous_equil=second_cyp_previous_1dum,
+                            heme_1=heme_1_for_rcomp,
+                            heme_2=heme_2_for_rcomp,
+                        )
+                        setup.restraints(
+                            pose,
+                            rest,
+                            bb_start,
+                            bb_end,
+                            weight,
+                            stage,
+                            mol,
+                            molr,
+                            comp,
+                            bb_equil,
+                            sdr_dist,
+                            dec_method,
+                            other_mol,
+                        )
+                        setup.sim_files(
+                            hmr,
+                            temperature,
+                            mol,
+                            num_sim,
+                            pose,
+                            comp,
+                            win,
+                            stage,
+                            steps1,
+                            steps2,
+                            rng,
+                        )
+                    else:
+                        print(
+                            "window: %s%02d weight: %s" % (comp, int(win), str(weight))
+                        )
+                        build.build_dec(
+                            fwin,
+                            hmr,
+                            mol,
+                            pose,
+                            molr,
+                            poser,
+                            comp,
+                            win,
+                            water_model,
+                            ntpr,
+                            ntwr,
+                            ntwe,
+                            ntwx,
+                            cut,
+                            gamma_ln,
+                            barostat,
+                            receptor_ff,
+                            ligand_ff,
+                            dt,
+                            sdr_dist,
+                            dec_method,
+                            l1_x,
+                            l1_y,
+                            l1_z,
+                            l1_range,
+                            min_adis,
+                            max_adis,
+                            ion_def,
+                            other_mol,
+                            solv_shell,
+                            first_cyp_dec=first_cyp_1dum,
+                            second_cyp_dec=second_cyp_1dum,
+                            first_cyp_next_dec=first_cyp_next_1dum,
+                            second_cyp_next_dec=second_cyp_next_1dum,
+                            first_cyp_previous_dec=first_cyp_previous_1dum,
+                            second_cyp_previous_dec=second_cyp_previous_1dum,
+                            heme_1=heme_1_for_rcomp,
+                            heme_2=heme_2_for_rcomp,
+                            sdr_axis=sdr_axis,
+                        )
+                        setup.restraints(
+                            pose,
+                            rest,
+                            bb_start,
+                            bb_end,
+                            weight,
+                            stage,
+                            mol,
+                            molr,
+                            comp,
+                            bb_equil,
+                            sdr_dist,
+                            dec_method,
+                            other_mol,
+                        )
+                        setup.sim_files(
+                            hmr,
+                            temperature,
+                            mol,
+                            num_sim,
+                            pose,
+                            comp,
+                            win,
+                            stage,
+                            steps1,
+                            steps2,
+                            rng,
+                        )
+                print(
+                    f"[DEBUG] comp={comp} win={win} anch={anch} cwd={os.getcwd()}",
+                    flush=True,
+                )
+
+                if anch != "all":
+                    print(
+                        f"[DEBUG] BREAK triggered for comp={comp} because anch={anch}",
+                        flush=True,
+                    )
+                    break
+
+                print(
+                    f"[DEBUG] continuing, leaving directory {os.getcwd()}", flush=True
+                )
+                os.chdir("../")
+                print(f"[DEBUG] now in {os.getcwd()}", flush=True)
             # Component m (needs special handling in heme system)
-            elif comp == "m":
+            elif comp == "m" or comp == "a":
                 steps1 = dic_steps1[comp]
                 steps2 = dic_steps2[comp]
                 if not os.path.exists("rest"):
@@ -1695,6 +1944,10 @@ elif stage == "fe":
                             heme_1=heme_1_1dum,
                             heme_2=heme_2_1dum,
                             sdr_axis=sdr_axis,
+                        )
+                        print(
+                            f"[DEBUG] comp={comp} win={win} build_dec returned anch={anch}",
+                            flush=True,
                         )
                         if anch == "anch1":
                             aa1_poses.append(pose)
@@ -1901,6 +2154,10 @@ elif stage == "fe":
                             heme_2=heme_2_2dum,
                             sdr_axis=sdr_axis,
                         )
+                        print(
+                            f"[DEBUG] comp={comp} win={win} build_dec returned anch={anch}",
+                            flush=True,
+                        )
                         if anch == "anch1":
                             aa1_poses.append(pose)
                             break
@@ -2088,6 +2345,10 @@ elif stage == "fe":
                             heme_2=heme_2_2dum,
                             sdr_axis=sdr_axis,
                         )
+                        print(
+                            f"[DEBUG] comp={comp} win={win} build_dec returned anch={anch}",
+                            flush=True,
+                        )
                         if anch == "anch1":
                             aa1_poses.append(pose)
                             break
@@ -2242,6 +2503,10 @@ elif stage == "fe":
                             heme_1=heme_1_2dum,
                             heme_2=heme_2_2dum,
                             sdr_axis=sdr_axis,
+                        )
+                        print(
+                            f"[DEBUG] comp={comp} win={win} build_dec returned anch={anch}",
+                            flush=True,
                         )
                         if anch == "anch1":
                             aa1_poses.append(pose)

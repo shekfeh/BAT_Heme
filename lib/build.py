@@ -2441,7 +2441,7 @@ def build_dec(
     )
     ##############Components Building#######################
     if comp == "n":
-        dec_method == "sdr"
+        dec_method = "sdr"
 
     if (
         comp == "a"
@@ -3703,9 +3703,6 @@ def create_box_cyp_equil(
         insert_ter_after_resnum("build.pdb", insert_after)
         insert_ter_after_resnum("build-dry.pdb", insert_after)
 
-    # insert_ter_after_resnum("build.pdb", 422)
-    # insert_ter_after_resnum("build-dry.pdb", 422)
-
     # Append tleap file for vacuum
     tleap_vac = open("tleap_vac.in", "a")
     tleap_vac.write("# Load the necessary parameters\n")
@@ -4123,9 +4120,6 @@ def create_box_cyp_equil(
 
     if second_cyp_equil is not None:
         remove_ter_after_resnum("full.pdb", int(second_cyp_equil))
-
-    # remove_ter_after_resnum("full.pdb", 119)
-    # remove_ter_after_resnum("full.pdb", 540)
 
     # Apply hydrogen mass repartitioning
     print("Applying mass repartitioning...")

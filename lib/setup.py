@@ -38,7 +38,7 @@ def restraints(
     reflig_pdb_file = "vac_reference.pdb"
 
     if comp == "n":
-        dec_method == "sdr"
+        dec_method = "sdr"
 
     # Restraint identifiers
     recep_tr = "#Rec_TR"
@@ -390,7 +390,7 @@ def restraints(
     # -------------------------------
     # ✅ DEBUG: Print rst entries
     # -------------------------------
-    print(f" Total restraints to be written: {len(rst)}")
+    print(f"📌 Total restraints to be written: {len(rst)}")
     for i, r in enumerate(rst):
         print(f"  rst[{i}] = {r}")
 
@@ -431,7 +431,7 @@ def restraints(
     # -------------------------------
     # Run cpptraj
     # -------------------------------
-    print(" Running cpptraj to compute reference values...")
+    print("🚀 Running cpptraj to compute reference values...")
     sp.call("cpptraj -i assign.in > assign.log", shell=True)
     print("✅ cpptraj complete. Parsing assign.dat...")
 
@@ -447,8 +447,8 @@ def restraints(
         )
 
     vals = lines[1].split()
-    print(f" assign.dat values read: {len(vals)}")
-    print(f" Values: {vals}")
+    print(f"📊 assign.dat values read: {len(vals)}")
+    print(f"🧪 Values: {vals}")
 
     # Defensive rotation only if enough values
     if len(vals) >= 2:
@@ -477,6 +477,20 @@ def restraints(
     for i, line in enumerate(assign_lines):
         mask_part = line.split()[1:3]
         print(f"  Restraint {i}: {' '.join(mask_part)}")
+
+    # If chosen, apply initial reference for the protein backbone restraints
+    if stage == "fe" and comp != "c" and comp != "w" and comp != "f":
+        if bb_equil == "yes":
+            shutil.copy("../../../../equil/" + pose + "/assign.dat", "./assign-eq.dat")
+        else:
+            shutil.copy("./assign.dat", "./assign-eq.dat")
+        with open("./assign-eq.dat") as fin:
+            lines = (line.rstrip() for line in fin)
+            # Non-blank lines in a list
+            lines = list(line for line in lines if line)
+            valse = lines[1].split()
+            valse.append(valse.pop(0))
+            del valse[-1]
 
     # Define spring constants based on stage and weight
     if stage == "equil":
@@ -568,8 +582,8 @@ def restraints(
                             "r1= %10.4f, r2= %10.4f, r3= %10.4f, r4= %10.4f, rk2= %11.7f, rk3= %11.7f, &end %s \n"
                             % (
                                 float(0.0),
-                                float(vals[i]),
-                                float(vals[i]),
+                                float(valse[i]),
+                                float(valse[i]),
                                 float(999.0),
                                 rdsf,
                                 rdsf,
@@ -615,10 +629,10 @@ def restraints(
                         disang_file.write(
                             "r1= %10.4f, r2= %10.4f, r3= %10.4f, r4= %10.4f, rk2= %11.7f, rk3= %11.7f, &end %s \n"
                             % (
-                                float(vals[i]) - 180,
-                                float(vals[i]),
-                                float(vals[i]),
-                                float(vals[i]) + 180,
+                                float(valse[i]) - 180,
+                                float(valse[i]),
+                                float(valse[i]),
+                                float(valse[i]) + 180,
                                 rdhf,
                                 rdhf,
                                 recep_d,
