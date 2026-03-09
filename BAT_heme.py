@@ -688,10 +688,9 @@ if protein_type == "heme":
     cyp_residue_amber_A = _map_res_orig_to_amber(cyp_residue_orig, prot_shift)
 
     # ---------- Chain B (AMBER numbering, no dummies) ----------
-    # +1 because reconstruction places chain B after a TER boundary
     prot_first_amber_B = prot_last_amber_B = cyp_residue_amber_B = None
     if num_chains == 2:
-        chainB_offset = prot_len  # to be reviewed later: chainB_offset = prot_len + 1
+        chainB_offset = prot_len
         prot_first_amber_B = prot_first_amber_A + chainB_offset
         prot_last_amber_B = prot_last_amber_A + chainB_offset
         cyp_residue_amber_B = cyp_residue_amber_A + chainB_offset
@@ -742,76 +741,63 @@ if protein_type == "heme":
     prot_end_2dum = prot_end_nodum + NDUMMY_2
 
     # ---------- Heme residue numbers ----------
-    # Policy:
-    #   - heme_1/heme_2 in the input are OPTIONAL overrides
-    #   - they MUST match the EQUIL numbering used by tleap scripts in equil
-    #   - if they look wrong, we ignore them and infer from other_mol
+    # heme_1 / heme_2 from input are ORIGINAL PDB residue numbers.
+    # They are useful during structure-preparation logic, but they are
+    # not directly comparable to AMBER/EQUIL numbering.
+    #
+    # For equil/FE setup below, we determine working heme residue IDs
+    # from the reconstructed system layout (protein + UNL + other_mol).
 
-    heme_amber_A = heme_1_orig  # already int or None from parsing
-    heme_amber_B = heme_2_orig  # already int or None from parsing
+    heme_1_orig_pdb = heme_1_orig
+    heme_2_orig_pdb = heme_2_orig
 
     def _infer_hemes_from_othermol(prot_end_stage: int, other_mol_list, nchains: int):
+        """
+        Infer HEM residue numbers in the stage-specific AMBER numbering.
+
+        Assumptions:
+          - protein occupies residues 1..prot_end_stage
+          - UNL is appended immediately after protein
+          - other_mol residues follow UNL
+          - for num_chains=2, other_mol is repeated in order
+        """
         unl_res = prot_end_stage + 1
         start = unl_res + 1
+
         expanded = []
         for _ in range(int(nchains)):
             expanded.extend(list(other_mol_list))
+
         hem_res = []
         for idx, name in enumerate(expanded):
             if str(name).upper() == "HEM":
                 hem_res.append(start + idx)
         return hem_res
 
-    # ---------- EQUIL (1 dummy) ----------
-    hem_1dum = _infer_hemes_from_othermol(prot_end_1dum, other_mol, num_chains)
+    # ---------- EQUIL (+1 dummy) ----------
+    inferred_hemes_equil = _infer_hemes_from_othermol(
+        prot_end_1dum, other_mol, num_chains
+    )
 
-    # Validate overrides against inferred EQUIL numbering
-    if heme_amber_A is not None and len(hem_1dum) >= 1 and heme_amber_A != hem_1dum[0]:
-        print(
-            "WARNING: heme_1 override does not match inferred EQUIL numbering; ignoring override.",
-            flush=True,
-        )
-        heme_amber_A = None
+    heme_1_1dum = inferred_hemes_equil[0] if len(inferred_hemes_equil) >= 1 else None
+    heme_2_1dum = inferred_hemes_equil[1] if len(inferred_hemes_equil) >= 2 else None
 
-    if (
-        num_chains == 2
-        and heme_amber_B is not None
-        and len(hem_1dum) >= 2
-        and heme_amber_B != hem_1dum[1]
-    ):
-        print(
-            "WARNING: heme_2 override does not match inferred EQUIL numbering; ignoring override.",
-            flush=True,
-        )
-        heme_amber_B = None
-
-    # Fill missing from inference (EQUIL)
-    if heme_amber_A is None:
-        heme_amber_A = hem_1dum[0] if len(hem_1dum) >= 1 else None
-    if num_chains == 2 and heme_amber_B is None:
-        heme_amber_B = hem_1dum[1] if len(hem_1dum) >= 2 else None
-
-    # Hard error if still missing
-    if heme_amber_A is None:
+    if heme_1_1dum is None:
         raise ValueError(
-            "Could not infer heme_1 from other_mol for equil; include 'HEM' in other_mol or provide heme_1."
+            "Could not infer heme_1 in EQUIL numbering; include 'HEM' in other_mol."
         )
-    if num_chains == 2 and heme_amber_B is None:
+    if num_chains == 2 and heme_2_1dum is None:
         raise ValueError(
-            "Could not infer heme_2 from other_mol for equil; include 'HEM' in other_mol or provide heme_2."
+            "Could not infer heme_2 in EQUIL numbering; include 'HEM' in other_mol."
         )
 
-    # ---------- Expose heme numbers ----------
-    # EQUIL (1 dummy)
-    heme_1_1dum = heme_amber_A
-    heme_2_1dum = heme_amber_B if num_chains == 2 else None
-
-    # FE (2 dummies): shift by +1 relative to EQUIL
-    # (because FE has one extra dummy compared to EQUIL)
+    # ---------- FE (+2 dummies) ----------
+    # FE numbering is shifted by +1 relative to EQUIL because FE has one
+    # additional dummy residue.
     heme_1_2dum = heme_1_1dum + 1
     heme_2_2dum = heme_2_1dum + 1 if heme_2_1dum is not None else None
 
-    # Backward-compatible names (if existing code expects these)
+    # Backward-compatible aliases
     heme_1 = heme_1_1dum
     heme_2 = heme_2_1dum
 
@@ -824,10 +810,13 @@ if protein_type == "heme":
         f"  Chain B: prot {prot_first_amber_B}..{prot_last_amber_B}, cyp={cyp_residue_amber_B}"
     )
     log(
-        f"  Equil dummy(+1): first_cyp_1dum={first_cyp_1dum}, second_cyp_1dum={second_cyp_1dum}, first heme_1dum={heme_1_1dum}, second heme_1dum={heme_2_1dum},"
+        f"  Original PDB heme IDs: heme_1_orig={heme_1_orig_pdb}, heme_2_orig={heme_2_orig_pdb}"
     )
     log(
-        f"  FE dummy(+2):    first_cyp_2dum={first_cyp_2dum},    second_cyp_2dum={second_cyp_2dum}, first heme_1dum={heme_2_2dum}, second heme_2dum={heme_2_2dum},"
+        f"  Equil dummy(+1): first_cyp_1dum={first_cyp_1dum}, second_cyp_1dum={second_cyp_1dum}, first_heme_1dum={heme_1_1dum}, second_heme_1dum={heme_2_1dum}"
+    )
+    log(
+        f"  FE dummy(+2):    first_cyp_2dum={first_cyp_2dum}, second_cyp_2dum={second_cyp_2dum}, first_heme_2dum={heme_1_2dum}, second_heme_2dum={heme_2_2dum}"
     )
 
 
@@ -1250,6 +1239,11 @@ if stage == "equil":
         print("Try reducing the min_adis parameter in the input file.")
 
 elif stage == "fe":
+    print("[DEBUG] Entered FE stage", flush=True)
+    print("[DEBUG] cwd =", os.getcwd(), flush=True)
+    print("[DEBUG] poses_def =", poses_def, flush=True)
+    print("[DEBUG] mols =", mols, flush=True)
+
     # Create systems for all poses after preparation
     num_sim = apr_sim
     # Create and move to free energy directory
@@ -1258,11 +1252,20 @@ elif stage == "fe":
     os.chdir("fe")
     for i in range(0, len(poses_def)):
         pose = poses_def[i]
+        print(f"[DEBUG] pose={pose}", flush=True)
+        print(
+            f"[DEBUG] checking ../equil/{pose} -> {os.path.exists('../equil/' + pose)}",
+            flush=True,
+        )
         poser = poses_def[0]
         mol = mols[i]
         molr = mols[0]
         fwin = len(release_eq) - 1
         if not os.path.exists("../equil/" + pose):
+            print(
+                f"[DEBUG] SKIPPING pose {pose} because ../equil/{pose} does not exist",
+                flush=True,
+            )
             continue
         print("Setting up " + str(poses_def[i]))
         # Create and move to pose directory
@@ -2345,8 +2348,8 @@ elif stage == "fe":
                             second_cyp_next_dec=second_cyp_next_1dum,
                             first_cyp_previous_dec=first_cyp_previous_1dum,
                             second_cyp_previous_dec=second_cyp_previous_1dum,
-                            heme_1=heme_1_2dum,
-                            heme_2=heme_2_2dum,
+                            heme_1=heme_1_1dum,
+                            heme_2=heme_2_1dum,
                             sdr_axis=sdr_axis,
                         )
                         print(
